@@ -176,7 +176,7 @@ class _Renamer:
                         self._process_declarator(d)
         # process body declarator children besides parameters
         for child in decl.children:
-            if child is not params:
+            if params is None or child.id != params.id:
                 self._traverse(child)
 
     def _process_param_text(self, node):
