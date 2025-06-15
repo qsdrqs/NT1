@@ -128,19 +128,127 @@ non_vulnerable_func(E1000ECore *buffer1, const E1000E_RingInfo *buffer2)
 }
 ```
 
+### 5.2 Another Example Test Case
+
+```c
+PS_SERIALIZER_DECODE_FUNC(php_binary) /* {{{ */
+{
+	const char *p;
+	char *name;
+	const char *endptr = val + vallen;
+	zval *current;
+	int namelen;
+	int has_value;
+	php_unserialize_data_t var_hash;
+
+	PHP_VAR_UNSERIALIZE_INIT(var_hash);
+
+	for (p = val; p < endptr; ) {
+		zval **tmp;
+                namelen = ((unsigned char)(*p)) & (~PS_BIN_UNDEF);
+
+                if (namelen < 0 || namelen > PS_BIN_MAX || (p + namelen) >= endptr) {
+                        return FAILURE;
+                }
+
+		name = estrndup(p + 1, namelen);
+
+		p += namelen + 1;
+
+		if (zend_hash_find(&EG(symbol_table), name, namelen + 1, (void **) &tmp) == SUCCESS) {
+			if ((Z_TYPE_PP(tmp) == IS_ARRAY && Z_ARRVAL_PP(tmp) == &EG(symbol_table)) || *tmp == PS(http_session_vars)) {
+				efree(name);
+				continue;
+			}
+		}
+
+		if (has_value) {
+			ALLOC_INIT_ZVAL(current);
+			if (php_var_unserialize(&current, (const unsigned char **) &p, (const unsigned char *) endptr, &var_hash TSRMLS_CC)) {
+				php_set_session_var(name, namelen, current, &var_hash  TSRMLS_CC);
+			} else {
+				PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
+				return FAILURE;
+			}
+			var_push_dtor_no_addref(&var_hash, &current);
+		}
+		PS_ADD_VARL(name, namelen);
+		efree(name);
+	}
+
+	PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
+
+	return SUCCESS;
+}
+/* }}} */
+```
+This code should be transformed to:
+
+```c
+PS_SERIALIZER_DECODE_FUNC(php_binary) /* {{{ */
+{
+	const char *buffer1;
+	char *buffer2;
+	const char *buffer3 = val + vallen;
+	zval *buffer4;
+	int namelen;
+	int has_value;
+	php_unserialize_data_t var_hash;
+
+	PHP_VAR_UNSERIALIZE_INIT(var_hash);
+
+	for (buffer1 = val; buffer1 < buffer3; ) {
+		zval **buffer5;
+                namelen = ((unsigned char)(*buffer1)) & (~PS_BIN_UNDEF);
+
+                if (namelen < 0 || namelen > PS_BIN_MAX || (buffer1 + namelen) >= buffer3) {
+                        return FAILURE;
+                }
+
+		buffer2 = estrndup(buffer1 + 1, namelen);
+
+		buffer1 += namelen + 1;
+
+		if (zend_hash_find(&EG(symbol_table), buffer2, namelen + 1, (void **) &buffer5) == SUCCESS) {
+			if ((Z_TYPE_PP(buffer5) == IS_ARRAY && Z_ARRVAL_PP(buffer5) == &EG(symbol_table)) || *buffer5 == PS(http_session_vars)) {
+				efree(buffer2);
+				continue;
+			}
+		}
+
+		if (has_value) {
+			ALLOC_INIT_ZVAL(buffer4);
+			if (php_var_unserialize(&buffer4, (const unsigned char **) &buffer1, (const unsigned char *) buffer3, &var_hash TSRMLS_CC)) {
+				php_set_session_var(buffer2, namelen, buffer4, &var_hash  TSRMLS_CC);
+			} else {
+				PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
+				return FAILURE;
+			}
+			var_push_dtor_no_addref(&var_hash, &buffer4);
+		}
+		PS_ADD_VARL(buffer2, namelen);
+		efree(buffer2);
+	}
+
+	PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
+
+	return SUCCESS;
+}
+```
+
 ---
 
 ## 6. Usage
 
 ```bash
 # Print modified code to stdout
-python rename_buffers_treesitter.py mycode.c
+python rename_buffers.py mycode.c
 
 # Overwrite original file
-python rename_buffers_treesitter.py mycode.c -i
+python rename_buffers.py mycode.c -i
 
 # Batch process directory
-find mydir/ -name '*.c' -print0 | xargs -0 -n1 python rename_buffers_treesitter.py -i
+find mydir/ -name '*.c' -print0 | xargs -0 -n1 python rename_buffers.py -i
 ```
 
 ---
